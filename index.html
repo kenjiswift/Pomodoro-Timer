@@ -313,6 +313,16 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
     <div class="row" style="margin-top:6px">
       <button class="small-btn" id="notifTest">通知テスト</button>
     </div>
+    <div class="card">
+      <details class="set" id="diagBox">
+        <summary>通知がうまくいかない時(診断)</summary>
+        <ul class="log" id="diagList"></ul>
+        <div class="row" style="margin-top:6px">
+          <button class="small-btn" id="diagCopy">診断結果をコピー</button>
+        </div>
+        <div class="note">うまくいかない時は、ここをコピーして伝えてください。</div>
+      </details>
+    </div>
   </div>
 
   <!-- 履歴画面 -->
@@ -496,9 +506,12 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
       closeDesktop();
       var n = new Notification(title, {body: body, silent: true, requireInteraction: true, tag: "pomodoro"});
       n.onclick = function(){ try{ window.focus(); }catch(e){} n.close(); };
+      diag.notif = "送信した(表示の合図待ち)";
+      n.onshow = function(){ diag.notif = "ブラウザは「表示した」と報告(" + timeStr(new Date()) + ")"; renderDiag(); };
+      n.onerror = function(){ diag.notif = "エラー:ブラウザが表示を拒否(" + timeStr(new Date()) + ")"; renderDiag(); };
       lastNotif = n;
       return true;
-    }catch(e){ return false; }
+    }catch(e){ diag.notif = "エラー:" + e.message; renderDiag(); return false; }
   }
   function closeDesktop(){
     if(lastNotif){ try{ lastNotif.close(); }catch(e){} lastNotif = null; }
@@ -534,8 +547,15 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
   function askNotification(then){
     try{
       // 古いブラウザはコールバック、新しいブラウザはPromiseで返るので、1回だけ処理する
-      var called = false;
-      var done = function(){ if(called) return; called = true; renderNotifNote(); if(then) then(); };
+      var called = false, t0 = Date.now();
+      var done = function(result){
+        if(called) return; called = true;
+        diag.ask = (result || Notification.permission) + "(" + (Date.now() - t0) + "ミリ秒で返答)";
+        lastAsk = result || Notification.permission;
+        renderNotifNote();
+        if(lastAsk === "default") toast("許可の確認が出なかったか、閉じられました");
+        if(then) then();
+      };
       var p = Notification.requestPermission(done);
       if(p && p.then){ p.then(done); }
     }catch(e){ renderNotifNote(); }
@@ -554,6 +574,49 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
       toast("通知を出せませんでした");
     }
   }
+  var diag = {ask:"まだ押していない", notif:"まだ送っていない", query:"確認中"}, lastAsk = null;
+  var PERM_JA = {granted:"許可", denied:"ブロック", "default":"未設定(まだ許可していない)", file:"ファイル版のため使えない", unsupported:"このブラウザは非対応"};
+  function browserName(){
+    var u = navigator.userAgent;
+    var m = u.match(/Edg\/([\d]+)/); if(m) return "Edge " + m[1];
+    m = u.match(/Chrome\/([\d]+)/); if(m) return "Chrome " + m[1];
+    m = u.match(/Firefox\/([\d]+)/); if(m) return "Firefox " + m[1];
+    return "その他";
+  }
+  function diagLines(){
+    var st = notifState();
+    return [
+      ["開き方", location.protocol === "file:" ? "ファイル版" : "サイト版(" + location.host + ")"],
+      ["ブラウザ", browserName()],
+      ["通知の許可", PERM_JA[st] || st],
+      ["許可の状態(別の確認方法)", diag.query],
+      ["「オンにする」の結果", diag.ask],
+      ["最後の通知", diag.notif],
+      ["ページ表示中", document.visibilityState === "visible" ? "はい" : "いいえ"]
+    ];
+  }
+  function renderDiag(){
+    var ul = $("diagList"); if(!ul) return;
+    ul.innerHTML = "";
+    diagLines().forEach(function(r){
+      var li = document.createElement("li");
+      var a = document.createElement("span"); a.className = "t"; a.textContent = r[0];
+      var b = document.createElement("span"); b.className = "m"; b.textContent = r[1];
+      li.appendChild(a); li.appendChild(b); ul.appendChild(li);
+    });
+  }
+  function refreshQuery(){
+    try{
+      if(navigator.permissions && navigator.permissions.query){
+        navigator.permissions.query({name:"notifications"}).then(function(r){
+          diag.query = r.state; renderDiag();
+          r.onchange = function(){ diag.query = r.state; renderNotifNote(); };
+        }, function(e){ diag.query = "取得できない(" + e.message + ")"; renderDiag(); });
+        return;
+      }
+    }catch(e){}
+    diag.query = "取得できない"; renderDiag();
+  }
   function renderNotifNote(){
     var st = notifState();
     var t = "終了時は、画面中央の案内・画面のふちの光・タブのタイトルでお知らせします(音は鳴りません)。";
@@ -561,15 +624,18 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
     if(st === "granted"){
       t += " デスクトップ通知もオンです(閉じるまで右下に残ります)。通知テストで出ない場合は、Windowsの「設定 → システム → 通知」でブラウザの通知がオンか、「応答不可(集中モード)」がオフかを確認してください。";
     }else if(st === "denied"){
-      card = "ブラウザで通知がブロックされています。アドレスバー左のアイコン →「通知」(またはサイトのアクセス許可)を「許可」にして、ページを再読み込みしてください。";
+      card = "ブラウザで通知がブロックされています。アドレスバー左のアイコン →「通知」(またはサイトのアクセス許可)を「許可」にして、ページを再読み込みしてください。項目が選べない場合は、会社の設定で通知が禁止されている可能性があります。";
     }else if(st === "file"){
       card = "ファイルを直接開いているため、ブラウザの仕様で右下の通知は使えません。「サイト版を開く」から開くと使えます。履歴はファイル版と別になるので、必要なら履歴画面の「全部コピー」で控えてください。";
     }else if(st === "unsupported"){
       card = "この環境ではデスクトップ通知が使えません。終了時は画面中央に大きく表示します。";
+    }else if(lastAsk === "default"){
+      card = "許可の確認が出なかったか、閉じられました。アドレスバーに斜線の入ったベルのアイコンが出ていたら、それを押して「許可」を選んでください。アイコンも出ない場合は、Edgeの「設定 → Cookieとサイトのアクセス許可 → 通知」で「送信する前に確認する」がオンか、「静かな通知要求」がオフかを確認してください。";
     }else{
       card = "オンにすると、終了時に画面の右下にメールのような通知が出ます。";
     }
     $("notifNote").textContent = t;
+    renderDiag();
     $("notifCard").style.display = st === "granted" ? "none" : "block";
     $("notifCardNote").textContent = card;
     $("notifCardTitle").textContent = st === "file" ? "このファイルでは右下の通知が出ません" : "デスクトップ通知がオフです";
@@ -721,6 +787,9 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
   $("overlay").addEventListener("click", function(ev){ if(ev.target === this) stopAlert(); });
   $("notifOn").addEventListener("click", testNotification);
   $("notifTest").addEventListener("click", testNotification);
+  $("diagCopy").addEventListener("click", function(){
+    copyText(diagLines().map(function(r){ return r[0] + ": " + r[1]; }).join("\n"));
+  });
   window.addEventListener("focus", renderNotifNote);
 
   $("tabTimer").addEventListener("click", function(){ switchView("Timer"); });
@@ -799,6 +868,7 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
   applyTheme();
   fillSettings();
   renderNotifNote();
+  refreshQuery();
   // 前回の起動中に終了時刻を過ぎていた場合
   if(state.running && state.endAt - Date.now() <= 0){
     finish();
