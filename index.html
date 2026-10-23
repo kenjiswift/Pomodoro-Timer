@@ -164,6 +164,25 @@ details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
 .day-head .d{font-weight:bold}
 .day-head .s{color:var(--sub);font-size:12px}
 .empty{color:var(--sub);text-align:center;padding:20px 0}
+/* 通知の案内カード */
+.notif-card{border-color:var(--accent)}
+.notif-row{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.notif-row b{font-size:12px}
+/* 終了時に画面の上に出す大きな案内 */
+.overlay{
+  position:fixed;inset:0;z-index:4;display:none;align-items:center;justify-content:center;
+  padding:12px;background:rgba(0,0,0,.55);
+}
+html[data-theme=light] .overlay{background:rgba(0,0,0,.35)}
+.overlay.on{display:flex}
+.ov-box{
+  width:100%;max-width:260px;text-align:center;padding:18px 12px;
+  background:var(--bg);border:2px solid var(--accent);border-radius:var(--radius);
+  box-shadow:0 0 24px var(--glow),0 8px 24px rgba(0,0,0,.4);
+}
+.ov-title{font-size:18px;font-weight:bold;color:var(--accent);margin-bottom:6px}
+.ov-sub{font-size:12px;color:var(--sub);margin-bottom:12px}
+.ov-box .small-btn{width:100%;padding:10px;font-size:14px;font-weight:bold}
 .toast{
   position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:3;
   background:var(--text);color:var(--bg);padding:7px 12px;border-radius:8px;font-size:12px;
@@ -245,6 +264,14 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
       <button id="btnReset" title="今の区間をやり直す">リセット</button>
     </div>
 
+    <div id="notifCard" class="card notif-card" style="display:none">
+      <div class="notif-row">
+        <b>デスクトップ通知がオフです</b>
+        <button class="small-btn primary" id="notifOn">オンにする</button>
+      </div>
+      <div class="note" id="notifCardNote">オンにすると、終了時に画面の右下にメールのような通知が出ます。</div>
+    </div>
+
     <div id="memoCard" class="card memo-card" style="display:none">
       <div class="q">何を片付けた?(任意)</div>
       <div class="row">
@@ -282,6 +309,9 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
     </div>
 
     <div class="note" id="notifNote"></div>
+    <div class="row" style="margin-top:6px">
+      <button class="small-btn" id="notifTest">通知テスト</button>
+    </div>
   </div>
 
   <!-- 履歴画面 -->
@@ -291,6 +321,13 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
       <button class="small-btn" id="clearAll">全削除</button>
     </div>
     <div id="histBody"></div>
+  </div>
+</div>
+<div class="overlay" id="overlay">
+  <div class="ov-box">
+    <div class="ov-title" id="ovTitle">集中おわり!</div>
+    <div class="ov-sub" id="ovSub"></div>
+    <button class="small-btn primary" id="ovOk">OK</button>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -438,19 +475,32 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
   }
 
   /* ---------- 終了の合図(音なし) ---------- */
-  var blinkTimer = null, blinkOn = false;
+  var blinkTimer = null, blinkOn = false, lastNotif = null;
   function alertUser(finished){
-    var msg = finished === "focus" ? "集中おつかれさま。休憩しましょう" : "休憩おわり。次の集中へ";
+    var title = finished === "focus" ? "集中おわり!" : "休憩おわり!";
+    var msg = finished === "focus" ? "おつかれさま。休憩しましょう" : "次の集中へ";
     document.body.classList.remove("flash");
     void document.body.offsetWidth;
     document.body.classList.add("flash");
-    startBlink(finished === "focus" ? "★ 集中おわり!" : "★ 休憩おわり!");
+    startBlink("★ " + title);
+    $("ovTitle").textContent = title;
+    $("ovSub").textContent = msg;
+    $("overlay").classList.add("on");
+    showDesktop((finished === "focus" ? "🍅 " : "☕ ") + title, msg);
+  }
+  /* デスクトップ通知(右下に出るもの)。閉じるまで残す */
+  function showDesktop(title, body){
     try{
-      if("Notification" in window && Notification.permission === "granted"){
-        var n = new Notification("ポモドーロ", {body: msg, silent: true});
-        n.onclick = function(){ try{ window.focus(); }catch(e){} n.close(); };
-      }
-    }catch(e){}
+      if(notifState() !== "granted") return false;
+      closeDesktop();
+      var n = new Notification(title, {body: body, silent: true, requireInteraction: true, tag: "pomodoro"});
+      n.onclick = function(){ try{ window.focus(); }catch(e){} n.close(); };
+      lastNotif = n;
+      return true;
+    }catch(e){ return false; }
+  }
+  function closeDesktop(){
+    if(lastNotif){ try{ lastNotif.close(); }catch(e){} lastNotif = null; }
   }
   function startBlink(text){
     stopBlink();
@@ -467,32 +517,58 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
   }
   function stopAlert(){
     document.body.classList.remove("flash");
+    $("overlay").classList.remove("on");
+    closeDesktop();
     stopBlink();
   }
 
-  function maybeAskNotification(){
+  function notifState(){
     try{
-      if("Notification" in window && Notification.permission === "default"){
-        var p = Notification.requestPermission();
-        if(p && p.then){ p.then(renderNotifNote); }
-      }
-    }catch(e){}
+      if(!("Notification" in window)) return "unsupported";
+      return Notification.permission;
+    }catch(e){ return "unsupported"; }
+  }
+  function askNotification(then){
+    try{
+      // 古いブラウザはコールバック、新しいブラウザはPromiseで返るので、1回だけ処理する
+      var called = false;
+      var done = function(){ if(called) return; called = true; renderNotifNote(); if(then) then(); };
+      var p = Notification.requestPermission(done);
+      if(p && p.then){ p.then(done); }
+    }catch(e){ renderNotifNote(); }
+  }
+  function maybeAskNotification(){
+    if(notifState() === "default") askNotification();
+  }
+  function testNotification(){
+    if(notifState() === "default"){
+      askNotification(function(){ if(notifState() === "granted") testNotification(); });
+      return;
+    }
+    if(showDesktop("🍅 ポモドーロ", "通知テストです。終了時はこのように表示されます")){
+      toast("通知を送りました");
+    }else{
+      toast("通知を出せませんでした");
+    }
   }
   function renderNotifNote(){
-    var el = $("notifNote");
-    var t = "合図は画面のふちの光とタブのタイトルで出ます(音は鳴りません)。";
-    try{
-      if(!("Notification" in window)){
-        t += " ブラウザ通知はこの環境では使えません。";
-      }else if(Notification.permission === "granted"){
-        t += " ブラウザ通知もオンです。";
-      }else if(Notification.permission === "denied"){
-        t += " ブラウザ通知は許可されていません(光とタイトルで代用します)。";
-      }else{
-        t += " 「開始」を押すと、ブラウザ通知の許可を聞かれることがあります。";
-      }
-    }catch(e){}
-    el.textContent = t;
+    var st = notifState();
+    var t = "終了時は、画面中央の案内・画面のふちの光・タブのタイトルでお知らせします(音は鳴りません)。";
+    var card = "";
+    if(st === "granted"){
+      t += " デスクトップ通知もオンです(閉じるまで右下に残ります)。通知テストで出ない場合は、Windowsの「設定 → システム → 通知」でブラウザの通知がオンか、「応答不可(集中モード)」がオフかを確認してください。";
+    }else if(st === "denied"){
+      card = "ブラウザで通知がブロックされています。アドレスバー左のアイコン →「通知」(またはサイトのアクセス許可)を「許可」にして、ページを再読み込みしてください。";
+    }else if(st === "unsupported"){
+      card = "この環境ではデスクトップ通知が使えません。終了時は画面中央に大きく表示します。";
+    }else{
+      card = "オンにすると、終了時に画面の右下にメールのような通知が出ます。";
+    }
+    $("notifNote").textContent = t;
+    $("notifCard").style.display = st === "granted" ? "none" : "block";
+    $("notifCardNote").textContent = card;
+    $("notifOn").style.display = st === "default" ? "" : "none";
+    $("notifTest").style.display = st === "granted" ? "" : "none";
   }
 
   /* ---------- 描画 ---------- */
@@ -634,6 +710,11 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
   $("btnMain").addEventListener("click", function(){ state.running ? pause() : start(); });
   $("btnSkip").addEventListener("click", skip);
   $("btnReset").addEventListener("click", reset);
+  $("ovOk").addEventListener("click", stopAlert);
+  $("overlay").addEventListener("click", function(ev){ if(ev.target === this) stopAlert(); });
+  $("notifOn").addEventListener("click", testNotification);
+  $("notifTest").addEventListener("click", testNotification);
+  window.addEventListener("focus", renderNotifNote);
 
   $("tabTimer").addEventListener("click", function(){ switchView("Timer"); });
   $("tabHist").addEventListener("click", function(){ switchView("Hist"); });
