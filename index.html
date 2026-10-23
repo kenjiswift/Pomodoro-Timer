@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ポモドーロ</title>
+<style>
+:root{
+  --bg:#faf8f5; --card:#ffffff; --text:#2b2b2b; --sub:#7a7a7a; --line:#e6e1da;
+  --accent:#e0634f; --accent-soft:#fbe9e5;
+}
+body.short{ --accent:#3f9a6b; --accent-soft:#e4f3ea; }
+body.long{ --accent:#3d79c2; --accent-soft:#e3edf9; }
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:"Yu Gothic UI","Meiryo UI","Hiragino Sans",sans-serif;
+  background:var(--bg); color:var(--text);
+  min-width:120px; font-size:13px;
+  transition:background .4s;
+}
+body.flash{ animation:flash 1s ease-in-out 6; }
+@keyframes flash{ 0%,100%{background:var(--bg)} 50%{background:var(--accent-soft)} }
+.wrap{padding:6px 6px 20px}
+.tabs{display:flex;gap:4px;margin-bottom:6px}
+.tabs button{
+  flex:1;padding:5px 2px;white-space:nowrap;border:1px solid var(--line);background:var(--card);
+  border-radius:8px;font-size:12px;color:var(--sub);cursor:pointer;
+}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:bold}
+.view{display:none}.view.on{display:block}
+
+.mode{text-align:center;font-weight:bold;color:var(--accent);font-size:15px;margin:2px 0 6px}
+.ring{position:relative;width:100%;max-width:140px;margin:0 auto}
+.ring svg{display:block;width:100%;height:auto;transform:rotate(-90deg)}
+.ring .bg{stroke:var(--line)}
+.ring .fg{stroke:var(--accent);transition:stroke-dashoffset .3s linear}
+.time{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  font-size:clamp(18px,12vw,30px);font-weight:bold;font-variant-numeric:tabular-nums;
+}
+.time small{font-size:10px;font-weight:normal;color:var(--sub);margin-top:2px}
+
+.btns{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+.btns button{
+  flex:1 1 40%;padding:8px 2px;white-space:nowrap;border-radius:10px;border:1px solid var(--line);
+  background:var(--card);font-size:12px;cursor:pointer;color:var(--text);
+}
+.btns button.main{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:bold;flex:1 1 100%;padding:10px 2px;font-size:13px}
+button:active{transform:translateY(1px)}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;margin:8px 0}
+.card h3{margin:0 0 6px;font-size:13px;color:var(--sub);font-weight:bold}
+.memo-card{border-color:var(--accent);background:var(--accent-soft)}
+.memo-card .q{font-weight:bold;margin-bottom:6px}
+.row{display:flex;gap:6px}
+input[type=text]{
+  width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;
+  font-family:inherit;background:#fff;
+}
+.small-btn{
+  padding:6px 10px;border:1px solid var(--line);background:#fff;border-radius:8px;
+  font-size:12px;cursor:pointer;color:var(--text);white-space:nowrap;
+}
+.small-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.summary{display:flex;justify-content:space-between;align-items:baseline}
+.summary b{font-size:18px;color:var(--accent)}
+ul.log{list-style:none;margin:6px 0 0;padding:0}
+ul.log li{
+  display:flex;flex-wrap:wrap;gap:2px 4px;align-items:flex-start;padding:5px 0;border-top:1px dashed var(--line);
+  font-size:12px;
+}
+ul.log li:first-child{border-top:none}
+ul.log .t{flex:1;color:var(--sub);white-space:nowrap;font-variant-numeric:tabular-nums}
+ul.log .m{flex:1 1 100%;order:3;word-break:break-all}
+ul.log .m.none{color:#b5b0a8}
+ul.log .x{border:none;background:none;color:#b5b0a8;cursor:pointer;font-size:14px;padding:0 2px}
+ul.log .x:hover{color:var(--accent)}
+
+details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
+.set-grid{display:grid;grid-template-columns:1fr auto;gap:6px 8px;align-items:center;margin-top:8px}
+.set-grid input{width:48px;padding:5px;border:1px solid var(--line);border-radius:6px;font-size:14px;text-align:right}
+.note{font-size:10.5px;color:var(--sub);margin-top:6px;line-height:1.5}
+
+.day{margin-bottom:10px}
+.day-head{display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
+.day-head .d{font-weight:bold}
+.day-head .s{color:var(--sub);font-size:12px}
+.empty{color:var(--sub);text-align:center;padding:20px 0}
+.toast{
+  position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
+  background:#333;color:#fff;padding:7px 12px;border-radius:8px;font-size:12px;
+  opacity:0;pointer-events:none;transition:opacity .25s;max-width:90%;
+}
+.toast.on{opacity:.92}
+</style>
+</head>
+<body class="focus">
+<div class="wrap">
+  <div class="tabs">
+    <button id="tabTimer" class="on">タイマー</button>
+    <button id="tabHist">履歴</button>
+  </div>
+
+  <!-- タイマー画面 -->
+  <div id="viewTimer" class="view on">
+    <div class="mode" id="modeLabel">集中</div>
+    <div class="ring">
+      <svg viewBox="0 0 120 120">
+        <circle class="bg" cx="60" cy="60" r="54" fill="none" stroke-width="8"></circle>
+        <circle class="fg" id="fg" cx="60" cy="60" r="54" fill="none" stroke-width="8"
+          stroke-linecap="round" stroke-dasharray="339.292" stroke-dashoffset="0"></circle>
+      </svg>
+      <div class="time"><span id="timeText">25:00</span><small id="subText">今日 0回</small></div>
+    </div>
+
+    <div class="btns">
+      <button id="btnMain" class="main">開始</button>
+      <button id="btnSkip" title="今の区間を終えて次へ">次へ</button>
+      <button id="btnReset" title="今の区間をやり直す">リセット</button>
+    </div>
+
+    <div id="memoCard" class="card memo-card" style="display:none">
+      <div class="q">何を片付けた?(任意)</div>
+      <div class="row">
+        <input type="text" id="memoInput" placeholder="一行でOK。空でも大丈夫">
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="small-btn primary" id="memoSave">保存</button>
+        <button class="small-btn" id="memoSkip">スキップ</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="summary"><h3 style="margin:0">今日</h3><div><b id="todayCount">0</b>回 / <span id="todayMins">0</span>分</div></div>
+      <ul class="log" id="todayLog"></ul>
+    </div>
+
+    <div class="card">
+      <details class="set">
+        <summary>時間の設定</summary>
+        <div class="set-grid">
+          <label for="setFocus">集中(分)</label><input type="number" id="setFocus" min="1" max="180">
+          <label for="setShort">休憩(分)</label><input type="number" id="setShort" min="1" max="60">
+          <label for="setLong">長い休憩(分)</label><input type="number" id="setLong" min="1" max="120">
+          <label for="setEvery">長い休憩の間隔(回)</label><input type="number" id="setEvery" min="2" max="10">
+        </div>
+        <div class="note">変更は、動いていない区間にはすぐ反映され、動作中の区間には次から反映されます。</div>
+      </details>
+    </div>
+
+    <div class="note" id="notifNote"></div>
+  </div>
+
+  <!-- 履歴画面 -->
+  <div id="viewHist" class="view">
+    <div class="row" style="margin-bottom:8px">
+      <button class="small-btn primary" id="copyAll">全部コピー</button>
+      <button class="small-btn" id="clearAll">全削除</button>
+    </div>
+    <div id="histBody"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* ---------- 保存まわり(localStorageが使えなくても動く) ---------- */
+  var mem = {};
+  var store = {
+    get: function(k){ try{ return localStorage.getItem(k); }catch(e){ return (k in mem)? mem[k] : null; } },
+    set: function(k,v){ try{ localStorage.setItem(k,v); }catch(e){ mem[k]=v; } }
+  };
+  function load(k, def){
+    try{ var s = store.get(k); return s ? JSON.parse(s) : def; }catch(e){ return def; }
+  }
+  function save(k, v){ store.set(k, JSON.stringify(v)); }
+
+  var KEY_SET="pomo_settings_v1", KEY_STATE="pomo_state_v1", KEY_LOG="pomo_log_v1";
+  var settings = Object.assign({focus:25, short:5, long:15, every:4}, load(KEY_SET, {}));
+  var log = load(KEY_LOG, []);
+  var state = load(KEY_STATE, null);
+  var pendingMemoId = null;
+
+  function dur(mode){ return settings[mode] * 60000; }
+
+  if(!state || !state.mode){
+    state = {mode:"focus", running:false, endAt:null, remainMs:dur("focus"), totalMs:dur("focus"), cycle:0};
+  }
+
+  /* ---------- 日付ユーティリティ ---------- */
+  function pad(n){ return (n<10?"0":"")+n; }
+  function dateKey(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+  function timeStr(d){ return pad(d.getHours())+":"+pad(d.getMinutes()); }
+  var WD = ["日","月","火","水","木","金","土"];
+  function dayLabel(key){
+    var p = key.split("-");
+    var d = new Date(+p[0], +p[1]-1, +p[2]);
+    return (d.getMonth()+1)+"/"+d.getDate()+"("+WD[d.getDay()]+")";
+  }
+  function fmt(ms){
+    var s = Math.ceil(ms/1000); if(s<0) s=0;
+    return pad(Math.floor(s/60))+":"+pad(s%60);
+  }
+
+  /* ---------- タイマー本体 ---------- */
+  var MODE_NAME = {focus:"集中", short:"休憩", long:"長い休憩"};
+  var CIRC = 339.292;
+
+  function remaining(){
+    return state.running ? Math.max(0, state.endAt - Date.now()) : state.remainMs;
+  }
+  function persistState(){ save(KEY_STATE, state); }
+
+  function setMode(mode){
+    state.mode = mode;
+    state.running = false;
+    state.endAt = null;
+    state.totalMs = dur(mode);
+    state.remainMs = state.totalMs;
+    persistState();
+  }
+
+  function start(){
+    if(state.running) return;
+    maybeAskNotification();
+    stopAlert();
+    state.endAt = Date.now() + state.remainMs;
+    state.running = true;
+    persistState();
+    render();
+  }
+  function pause(){
+    if(!state.running) return;
+    state.remainMs = Math.max(0, state.endAt - Date.now());
+    state.running = false;
+    state.endAt = null;
+    persistState();
+    render();
+  }
+  function reset(){
+    stopAlert();
+    setMode(state.mode);
+    render();
+  }
+  function nextModeAfter(mode){
+    if(mode === "focus"){
+      return (state.cycle % settings.every === 0) ? "long" : "short";
+    }
+    return "focus";
+  }
+  function skip(){
+    stopAlert();
+    if(state.mode === "focus"){
+      // 途中で次へ進む場合は、回数には数えない
+      setMode("short");
+    }else{
+      setMode("focus");
+    }
+    render();
+  }
+
+  function finish(){
+    var finished = state.mode;
+    if(finished === "focus"){
+      state.cycle += 1;
+      var now = new Date();
+      var entry = {
+        id: now.getTime()+"-"+Math.floor(Math.random()*1000),
+        date: dateKey(now), time: timeStr(now),
+        mins: Math.round(state.totalMs/60000), memo: ""
+      };
+      log.push(entry);
+      save(KEY_LOG, log);
+      pendingMemoId = entry.id;
+    }
+    setMode(nextModeAfter(finished));
+    alertUser(finished);
+    render();
+  }
+
+  /* ---------- 終了の合図(音なし) ---------- */
+  var blinkTimer = null, blinkOn = false;
+  function alertUser(finished){
+    var msg = finished === "focus" ? "集中おつかれさま。休憩しましょう" : "休憩おわり。次の集中へ";
+    document.body.classList.remove("flash");
+    void document.body.offsetWidth;
+    document.body.classList.add("flash");
+    startBlink(finished === "focus" ? "★ 集中おわり!" : "★ 休憩おわり!");
+    try{
+      if("Notification" in window && Notification.permission === "granted"){
+        var n = new Notification("ポモドーロ", {body: msg, silent: true});
+        n.onclick = function(){ try{ window.focus(); }catch(e){} n.close(); };
+      }
+    }catch(e){}
+  }
+  function startBlink(text){
+    stopBlink();
+    var count = 0;
+    blinkTimer = setInterval(function(){
+      blinkOn = !blinkOn;
+      document.title = blinkOn ? text : "ポモドーロ";
+      if(++count > 60){ stopBlink(); }
+    }, 700);
+  }
+  function stopBlink(){
+    if(blinkTimer){ clearInterval(blinkTimer); blinkTimer = null; }
+    updateTitle();
+  }
+  function stopAlert(){
+    document.body.classList.remove("flash");
+    stopBlink();
+  }
+
+  function maybeAskNotification(){
+    try{
+      if("Notification" in window && Notification.permission === "default"){
+        var p = Notification.requestPermission();
+        if(p && p.then){ p.then(renderNotifNote); }
+      }
+    }catch(e){}
+  }
+  function renderNotifNote(){
+    var el = $("notifNote");
+    var t = "合図は画面の点滅とタブのタイトルで出ます(音は鳴りません)。";
+    try{
+      if(!("Notification" in window)){
+        t += " ブラウザ通知はこの環境では使えません。";
+      }else if(Notification.permission === "granted"){
+        t += " ブラウザ通知もオンです。";
+      }else if(Notification.permission === "denied"){
+        t += " ブラウザ通知は許可されていません(点滅とタイトルで代用します)。";
+      }else{
+        t += " 「開始」を押すと、ブラウザ通知の許可を聞かれることがあります。";
+      }
+    }catch(e){}
+    el.textContent = t;
+  }
+
+  /* ---------- 描画 ---------- */
+  function updateTitle(){
+    if(blinkTimer) return;
+    if(state.running){
+      document.title = (state.mode==="focus" ? "🍅 " : "☕ ") + fmt(remaining()) + " " + MODE_NAME[state.mode];
+    }else{
+      document.title = "ポモドーロ";
+    }
+  }
+  function todayEntries(){
+    var k = dateKey(new Date());
+    return log.filter(function(e){ return e.date === k; });
+  }
+  function render(){
+    document.body.classList.remove("focus","short","long");
+    document.body.classList.add(state.mode);
+    var rem = remaining();
+    $("modeLabel").textContent = MODE_NAME[state.mode] + (state.running ? "" : (rem===state.totalMs ? "(待機中)" : "(一時停止)"));
+    $("timeText").textContent = fmt(rem);
+    var prog = state.totalMs > 0 ? 1 - rem/state.totalMs : 0;
+    $("fg").style.strokeDashoffset = String(CIRC * prog);
+    var te = todayEntries();
+    $("subText").textContent = "今日 " + te.length + "回";
+    $("btnMain").textContent = state.running ? "一時停止" : (rem===state.totalMs ? "開始" : "再開");
+    updateTitle();
+    renderToday();
+    renderMemoCard();
+    if($("viewHist").classList.contains("on")) renderHist();
+  }
+
+  function makeLogItem(e, withDelete){
+    var li = document.createElement("li");
+    var t = document.createElement("span"); t.className="t"; t.textContent = e.time + " " + e.mins + "分";
+    var m = document.createElement("span"); m.className="m" + (e.memo ? "" : " none");
+    m.textContent = e.memo || "(メモなし)";
+    li.appendChild(t); li.appendChild(m);
+    if(withDelete){
+      var x = document.createElement("button"); x.className="x"; x.textContent="✕"; x.title="削除";
+      x.addEventListener("click", function(){ removeEntry(e.id); });
+      li.appendChild(x);
+    }
+    return li;
+  }
+  function renderToday(){
+    var te = todayEntries();
+    var ul = $("todayLog"); ul.innerHTML = "";
+    var total = 0;
+    te.forEach(function(e){ total += e.mins; });
+    $("todayCount").textContent = te.length;
+    $("todayMins").textContent = total;
+    if(te.length === 0){
+      var li = document.createElement("li");
+      li.style.color = "var(--sub)"; li.textContent = "まだありません";
+      ul.appendChild(li); return;
+    }
+    te.slice().reverse().forEach(function(e){ ul.appendChild(makeLogItem(e, true)); });
+  }
+  function renderMemoCard(){
+    var show = false;
+    if(pendingMemoId){
+      show = log.some(function(e){ return e.id === pendingMemoId; });
+      if(!show) pendingMemoId = null;
+    }
+    $("memoCard").style.display = show ? "block" : "none";
+  }
+
+  function removeEntry(id){
+    log = log.filter(function(e){ return e.id !== id; });
+    save(KEY_LOG, log);
+    if(pendingMemoId === id) pendingMemoId = null;
+    render();
+  }
+
+  /* ---------- 履歴画面 ---------- */
+  function groupByDate(){
+    var map = {};
+    log.forEach(function(e){ (map[e.date] = map[e.date] || []).push(e); });
+    return Object.keys(map).sort().reverse().map(function(k){ return {key:k, items:map[k]}; });
+  }
+  function dayText(g){
+    var total = 0; g.items.forEach(function(e){ total += e.mins; });
+    var lines = [dayLabel(g.key) + " " + g.items.length + "回 " + total + "分"];
+    g.items.forEach(function(e){
+      lines.push("  " + e.time + " " + e.mins + "分" + (e.memo ? " " + e.memo : ""));
+    });
+    return lines.join("\n");
+  }
+  function renderHist(){
+    var body = $("histBody"); body.innerHTML = "";
+    var groups = groupByDate();
+    if(groups.length === 0){
+      var d = document.createElement("div"); d.className="empty"; d.textContent="まだ履歴がありません";
+      body.appendChild(d); return;
+    }
+    groups.forEach(function(g){
+      var total = 0; g.items.forEach(function(e){ total += e.mins; });
+      var card = document.createElement("div"); card.className = "card day";
+      var head = document.createElement("div"); head.className = "day-head";
+      var d = document.createElement("span"); d.className="d"; d.textContent = dayLabel(g.key);
+      var s = document.createElement("span"); s.className="s"; s.textContent = g.items.length + "回 / " + total + "分";
+      var cp = document.createElement("button"); cp.className="small-btn"; cp.textContent="コピー";
+      cp.addEventListener("click", function(){ copyText(dayText(g)); });
+      head.appendChild(d); head.appendChild(s); head.appendChild(cp);
+      card.appendChild(head);
+      var ul = document.createElement("ul"); ul.className="log";
+      g.items.forEach(function(e){ ul.appendChild(makeLogItem(e, true)); });
+      card.appendChild(ul);
+      body.appendChild(card);
+    });
+  }
+
+  function copyText(text){
+    function done(){ toast("コピーしました"); }
+    function fallback(){
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+      document.body.appendChild(ta); ta.select();
+      try{ document.execCommand("copy"); done(); }catch(e){ toast("コピーできませんでした"); }
+      document.body.removeChild(ta);
+    }
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(done, fallback);
+      }else{ fallback(); }
+    }catch(e){ fallback(); }
+  }
+  var toastTimer = null;
+  function toast(msg){
+    var t = $("toast"); t.textContent = msg; t.classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove("on"); }, 1600);
+  }
+
+  /* ---------- イベント ---------- */
+  $("btnMain").addEventListener("click", function(){ state.running ? pause() : start(); });
+  $("btnSkip").addEventListener("click", skip);
+  $("btnReset").addEventListener("click", reset);
+
+  $("tabTimer").addEventListener("click", function(){ switchView("Timer"); });
+  $("tabHist").addEventListener("click", function(){ switchView("Hist"); });
+  function switchView(name){
+    $("viewTimer").classList.toggle("on", name==="Timer");
+    $("viewHist").classList.toggle("on", name==="Hist");
+    $("tabTimer").classList.toggle("on", name==="Timer");
+    $("tabHist").classList.toggle("on", name==="Hist");
+    if(name==="Hist") renderHist();
+  }
+
+  function saveMemo(){
+    var v = $("memoInput").value.trim();
+    var e = log.filter(function(x){ return x.id === pendingMemoId; })[0];
+    if(e){ e.memo = v; save(KEY_LOG, log); }
+    pendingMemoId = null;
+    $("memoInput").value = "";
+    render();
+  }
+  $("memoSave").addEventListener("click", saveMemo);
+  $("memoSkip").addEventListener("click", function(){ pendingMemoId = null; $("memoInput").value=""; render(); });
+  $("memoInput").addEventListener("keydown", function(ev){ if(ev.key === "Enter"){ saveMemo(); } });
+
+  $("copyAll").addEventListener("click", function(){
+    var groups = groupByDate();
+    if(groups.length === 0){ toast("コピーする履歴がありません"); return; }
+    copyText(groups.map(dayText).join("\n\n"));
+  });
+  $("clearAll").addEventListener("click", function(){
+    if(log.length === 0) return;
+    if(confirm("履歴をすべて削除します。元に戻せません。よろしいですか?")){
+      log = []; save(KEY_LOG, log); pendingMemoId = null; render();
+    }
+  });
+
+  /* 設定 */
+  var fields = {focus:"setFocus", short:"setShort", long:"setLong", every:"setEvery"};
+  function fillSettings(){
+    Object.keys(fields).forEach(function(k){ $(fields[k]).value = settings[k]; });
+  }
+  Object.keys(fields).forEach(function(k){
+    $(fields[k]).addEventListener("change", function(){
+      var el = $(fields[k]);
+      var min = +el.min, max = +el.max;
+      var v = Math.round(+el.value);
+      if(!isFinite(v) || v < min) v = min;
+      if(v > max) v = max;
+      el.value = v;
+      settings[k] = v;
+      save(KEY_SET, settings);
+      // 待機中(未開始)の区間には、その場で反映
+      if(!state.running && k === state.mode && remaining() === state.totalMs){
+        state.totalMs = dur(state.mode); state.remainMs = state.totalMs; persistState();
+      }
+      render();
+    });
+  });
+
+  /* 日付が変わった時・復帰した時に表示を更新 */
+  document.addEventListener("visibilitychange", function(){ tick(); });
+  window.addEventListener("focus", function(){ stopBlink(); tick(); });
+  document.addEventListener("click", function(){ if(blinkTimer) stopBlink(); });
+
+  function tick(){
+    if(state.running && state.endAt - Date.now() <= 0){ finish(); return; }
+    render();
+  }
+
+  /* ---------- 起動 ---------- */
+  fillSettings();
+  renderNotifNote();
+  // 前回の起動中に終了時刻を過ぎていた場合
+  if(state.running && state.endAt - Date.now() <= 0){
+    finish();
+  }else{
+    render();
+  }
+  setInterval(tick, 500);
+})();
+</script>
+</body>
+</html>
