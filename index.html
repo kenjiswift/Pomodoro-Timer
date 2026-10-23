@@ -266,8 +266,9 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
 
     <div id="notifCard" class="card notif-card" style="display:none">
       <div class="notif-row">
-        <b>デスクトップ通知がオフです</b>
+        <b id="notifCardTitle">デスクトップ通知がオフです</b>
         <button class="small-btn primary" id="notifOn">オンにする</button>
+        <a class="small-btn primary" id="siteLink" href="https://kenjiswift.github.io/Pomodoro-Timer/" target="_blank" rel="noopener" style="text-decoration:none">サイト版を開く</a>
       </div>
       <div class="note" id="notifCardNote">オンにすると、終了時に画面の右下にメールのような通知が出ます。</div>
     </div>
@@ -524,6 +525,8 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
 
   function notifState(){
     try{
+      // ファイルとして開いたページは、ブラウザが通知の許可を記録できない
+      if(location.protocol === "file:") return "file";
       if(!("Notification" in window)) return "unsupported";
       return Notification.permission;
     }catch(e){ return "unsupported"; }
@@ -559,6 +562,8 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
       t += " デスクトップ通知もオンです(閉じるまで右下に残ります)。通知テストで出ない場合は、Windowsの「設定 → システム → 通知」でブラウザの通知がオンか、「応答不可(集中モード)」がオフかを確認してください。";
     }else if(st === "denied"){
       card = "ブラウザで通知がブロックされています。アドレスバー左のアイコン →「通知」(またはサイトのアクセス許可)を「許可」にして、ページを再読み込みしてください。";
+    }else if(st === "file"){
+      card = "ファイルを直接開いているため、ブラウザの仕様で右下の通知は使えません。「サイト版を開く」から開くと使えます。履歴はファイル版と別になるので、必要なら履歴画面の「全部コピー」で控えてください。";
     }else if(st === "unsupported"){
       card = "この環境ではデスクトップ通知が使えません。終了時は画面中央に大きく表示します。";
     }else{
@@ -567,6 +572,8 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
     $("notifNote").textContent = t;
     $("notifCard").style.display = st === "granted" ? "none" : "block";
     $("notifCardNote").textContent = card;
+    $("notifCardTitle").textContent = st === "file" ? "このファイルでは右下の通知が出ません" : "デスクトップ通知がオフです";
+    $("siteLink").style.display = st === "file" ? "" : "none";
     $("notifOn").style.display = st === "default" ? "" : "none";
     $("notifTest").style.display = st === "granted" ? "" : "none";
   }
