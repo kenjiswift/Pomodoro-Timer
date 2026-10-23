@@ -548,8 +548,17 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
     try{
       // 古いブラウザはコールバック、新しいブラウザはPromiseで返るので、1回だけ処理する
       var called = false, t0 = Date.now();
+      diag.ask = "押した(" + clockStr(new Date()) + ")。ブラウザの返事待ち…";
+      renderDiag();
+      // 確認画面が出ない(アドレスバーのアイコンに隠れる)と、返事が来ないまま止まる
+      setTimeout(function(){
+        if(called) return;
+        askWaiting = true;
+        diag.ask = "押した(" + clockStr(new Date(t0)) + ")が、4秒以上ブラウザから返事がない";
+        renderNotifNote();
+      }, 4000);
       var done = function(result){
-        if(called) return; called = true;
+        if(called) return; called = true; askWaiting = false;
         diag.ask = (result || Notification.permission) + "(" + (Date.now() - t0) + "ミリ秒で返答)";
         lastAsk = result || Notification.permission;
         renderNotifNote();
@@ -574,7 +583,8 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
       toast("通知を出せませんでした");
     }
   }
-  var diag = {ask:"まだ押していない", notif:"まだ送っていない", query:"確認中"}, lastAsk = null;
+  var diag = {ask:"まだ押していない", notif:"まだ送っていない", query:"確認中"}, lastAsk = null, askWaiting = false;
+  function clockStr(d){ return timeStr(d) + ":" + pad(d.getSeconds()); }
   var PERM_JA = {granted:"許可", denied:"ブロック", "default":"未設定(まだ許可していない)", file:"ファイル版のため使えない", unsupported:"このブラウザは非対応"};
   function browserName(){
     var u = navigator.userAgent;
@@ -610,7 +620,7 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
       if(navigator.permissions && navigator.permissions.query){
         navigator.permissions.query({name:"notifications"}).then(function(r){
           diag.query = r.state; renderDiag();
-          r.onchange = function(){ diag.query = r.state; renderNotifNote(); };
+          r.onchange = function(){ diag.query = r.state; if(r.state !== "prompt") askWaiting = false; renderNotifNote(); };
         }, function(e){ diag.query = "取得できない(" + e.message + ")"; renderDiag(); });
         return;
       }
@@ -629,6 +639,8 @@ html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
       card = "ファイルを直接開いているため、ブラウザの仕様で右下の通知は使えません。「サイト版を開く」から開くと使えます。履歴はファイル版と別になるので、必要なら履歴画面の「全部コピー」で控えてください。";
     }else if(st === "unsupported"){
       card = "この環境ではデスクトップ通知が使えません。終了時は画面中央に大きく表示します。";
+    }else if(askWaiting){
+      card = "許可の確認が、アドレスバーの中の小さなベルのアイコン(斜線入りのことも)に隠れています。それを押して「許可」を選んでください。";
     }else if(lastAsk === "default"){
       card = "許可の確認が出なかったか、閉じられました。アドレスバーに斜線の入ったベルのアイコンが出ていたら、それを押して「許可」を選んでください。アイコンも出ない場合は、Edgeの「設定 → Cookieとサイトのアクセス許可 → 通知」で「送信する前に確認する」がオンか、「静かな通知要求」がオフかを確認してください。";
     }else{
