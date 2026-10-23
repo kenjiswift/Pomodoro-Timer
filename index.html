@@ -1,40 +1,106 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-theme="neon">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ポモドーロ</title>
+<script>
+/* 画面が一瞬ちらつかないよう、描画前にテーマを当てる */
+(function(){
+  try{
+    var s = JSON.parse(localStorage.getItem("pomo_settings_v1") || "{}");
+    if(s && s.theme) document.documentElement.setAttribute("data-theme", s.theme);
+  }catch(e){}
+})();
+</script>
 <style>
-:root{
-  --bg:#faf8f5; --card:#ffffff; --text:#2b2b2b; --sub:#7a7a7a; --line:#e6e1da;
-  --accent:#e0634f; --accent-soft:#fbe9e5;
+/* ---------- テーマ ---------- */
+:root{color-scheme:dark}
+html[data-theme=light]{color-scheme:light}
+
+body{
+  --font:"Yu Gothic UI","Meiryo UI","Hiragino Sans",sans-serif;
+  --mono:"Consolas","Menlo","Yu Gothic UI","Meiryo UI",monospace;
+  --radius:10px; --btn-radius:10px; --tab-radius:8px;
 }
-body.short{ --accent:#3f9a6b; --accent-soft:#e4f3ea; }
-body.long{ --accent:#3d79c2; --accent-soft:#e3edf9; }
+
+/* A. ネオン(既定) */
+html[data-theme=neon] body{
+  --bg:#070b14; --card:rgba(9,18,32,.88); --text:#d8f6ff; --sub:#5f8aa3; --line:#1b3b55; --faint:#3a5e75;
+  --input-bg:#0a1626; --ring-bg:#10273a;
+  --accent:#00e5ff; --accent2:#00e5ff; --accent-soft:rgba(0,229,255,.12); --on-accent:#00141a; --glow:rgba(0,229,255,.55);
+  --font:var(--mono); --radius:4px; --btn-radius:4px; --tab-radius:4px;
+  background-image:linear-gradient(rgba(0,229,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.05) 1px,transparent 1px);
+  background-size:16px 16px; background-attachment:fixed;
+}
+html[data-theme=neon] body.short{ --accent:#39ff9f; --accent2:#39ff9f; --accent-soft:rgba(57,255,159,.12); --on-accent:#00170c; --glow:rgba(57,255,159,.5); }
+html[data-theme=neon] body.long{ --accent:#b388ff; --accent2:#b388ff; --accent-soft:rgba(179,136,255,.14); --on-accent:#14082a; --glow:rgba(179,136,255,.55); }
+
+/* B. オーロラ */
+html[data-theme=aurora] body{
+  --bg:#0d0b1a; --card:rgba(255,255,255,.06); --text:#ece8ff; --sub:#b7b0d8; --line:rgba(255,255,255,.13); --faint:#6f6890;
+  --input-bg:rgba(255,255,255,.08); --ring-bg:rgba(255,255,255,.1);
+  --accent:#ff4da6; --accent2:#7c5cff; --accent-soft:rgba(255,77,166,.14); --on-accent:#fff; --glow:rgba(124,92,255,.45);
+  --radius:14px; --btn-radius:12px; --tab-radius:999px;
+}
+html[data-theme=aurora] body.short{ --accent:#00d4ff; --accent2:#00f5a0; --accent-soft:rgba(0,212,255,.13); --on-accent:#03201d; --glow:rgba(0,212,255,.4); }
+html[data-theme=aurora] body.long{ --accent:#7c5cff; --accent2:#00c8ff; --accent-soft:rgba(124,92,255,.16); --on-accent:#fff; --glow:rgba(124,92,255,.45); }
+
+/* C. コックピット */
+html[data-theme=cockpit] body{
+  --bg:#050505; --card:#0b0b0b; --text:#e8e2d6; --sub:#6d675c; --line:#2a2a2a; --faint:#4a463f;
+  --input-bg:#0e0e0e; --ring-bg:#2b2b2b;
+  --accent:#ffb000; --accent2:#ffb000; --accent-soft:rgba(255,176,0,.1); --on-accent:#050505; --glow:rgba(255,176,0,.35);
+  --font:var(--mono); --radius:2px; --btn-radius:2px; --tab-radius:0;
+}
+html[data-theme=cockpit] body.short{ --accent:#4cd6a0; --accent2:#4cd6a0; --accent-soft:rgba(76,214,160,.1); --glow:rgba(76,214,160,.35); }
+html[data-theme=cockpit] body.long{ --accent:#6fb6ff; --accent2:#6fb6ff; --accent-soft:rgba(111,182,255,.1); --glow:rgba(111,182,255,.35); }
+
+/* D. ライト(従来の見た目) */
+html[data-theme=light] body{
+  --bg:#faf8f5; --card:#ffffff; --text:#2b2b2b; --sub:#7a7a7a; --line:#e6e1da; --faint:#b5b0a8;
+  --input-bg:#fff; --ring-bg:#e6e1da;
+  --accent:#e0634f; --accent2:#e0634f; --accent-soft:rgba(224,99,79,.12); --on-accent:#fff; --glow:transparent;
+}
+html[data-theme=light] body.short{ --accent:#3f9a6b; --accent2:#3f9a6b; --accent-soft:rgba(63,154,107,.12); }
+html[data-theme=light] body.long{ --accent:#3d79c2; --accent2:#3d79c2; --accent-soft:rgba(61,121,194,.12); }
+
+/* ---------- 共通 ---------- */
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
-  font-family:"Yu Gothic UI","Meiryo UI","Hiragino Sans",sans-serif;
-  background:var(--bg); color:var(--text);
-  min-width:120px; font-size:13px;
-  transition:background .4s;
+  font-family:var(--font);
+  background-color:var(--bg); color:var(--text);
+  min-width:120px; min-height:100vh; font-size:13px;
+  transition:background-color .4s;
 }
-body.flash{ animation:flash 1s ease-in-out 6; }
-@keyframes flash{ 0%,100%{background:var(--bg)} 50%{background:var(--accent-soft)} }
-.wrap{padding:6px 6px 20px}
+/* 終了の合図:画面のふちが光って脈打つ */
+body::after{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:2; opacity:0;
+  background:var(--accent-soft); box-shadow:inset 0 0 50px 6px var(--accent);
+}
+body.flash::after{ animation:pulse 1s ease-in-out 6; }
+@keyframes pulse{ 0%,100%{opacity:0} 50%{opacity:1} }
+
+.wrap{position:relative;z-index:1;padding:6px 6px 20px}
 .tabs{display:flex;gap:4px;margin-bottom:6px}
 .tabs button{
   flex:1;padding:5px 2px;white-space:nowrap;border:1px solid var(--line);background:var(--card);
-  border-radius:8px;font-size:12px;color:var(--sub);cursor:pointer;
+  border-radius:var(--tab-radius);font-size:12px;color:var(--sub);cursor:pointer;font-family:inherit;
 }
-.tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:bold}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:bold}
 .view{display:none}.view.on{display:block}
 
 .mode{text-align:center;font-weight:bold;color:var(--accent);font-size:15px;margin:2px 0 6px}
 .ring{position:relative;width:100%;max-width:140px;margin:0 auto}
-.ring svg{display:block;width:100%;height:auto;transform:rotate(-90deg)}
-.ring .bg{stroke:var(--line)}
-.ring .fg{stroke:var(--accent);transition:stroke-dashoffset .3s linear}
+.ring svg{display:block;width:100%;height:auto;transform:rotate(-90deg);overflow:visible}
+.ring .bg{stroke:var(--ring-bg)}
+.ring .fg{stroke:url(#ringGrad);transition:stroke-dashoffset .3s linear}
+.ring stop.s1{stop-color:var(--accent)}
+.ring stop.s2{stop-color:var(--accent2)}
+.ring .ticks{display:none}
+.ring .ticks line{stroke:var(--ring-bg);transition:stroke .3s}
+.ring .ticks line.on{stroke:var(--accent)}
 .time{
   position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;
@@ -44,26 +110,30 @@ body.flash{ animation:flash 1s ease-in-out 6; }
 
 .btns{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
 .btns button{
-  flex:1 1 40%;padding:8px 2px;white-space:nowrap;border-radius:10px;border:1px solid var(--line);
-  background:var(--card);font-size:12px;cursor:pointer;color:var(--text);
+  flex:1 1 40%;padding:8px 2px;white-space:nowrap;border-radius:var(--btn-radius);border:1px solid var(--line);
+  background:var(--card);font-size:12px;cursor:pointer;color:var(--text);font-family:inherit;
 }
-.btns button.main{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:bold;flex:1 1 100%;padding:10px 2px;font-size:13px}
+.btns button.main{
+  background:linear-gradient(90deg,var(--accent),var(--accent2));border-color:var(--accent);color:var(--on-accent);
+  font-weight:bold;flex:1 1 100%;padding:10px 2px;font-size:13px;
+}
 button:active{transform:translateY(1px)}
 
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;margin:8px 0}
+.card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:8px;margin:8px 0}
 .card h3{margin:0 0 6px;font-size:13px;color:var(--sub);font-weight:bold}
 .memo-card{border-color:var(--accent);background:var(--accent-soft)}
 .memo-card .q{font-weight:bold;margin-bottom:6px}
 .row{display:flex;gap:6px}
 input[type=text]{
-  width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;
-  font-family:inherit;background:#fff;
+  width:100%;padding:8px;border:1px solid var(--line);border-radius:var(--btn-radius);font-size:14px;
+  font-family:inherit;background:var(--input-bg);color:var(--text);
 }
+input::placeholder{color:var(--faint)}
 .small-btn{
-  padding:6px 10px;border:1px solid var(--line);background:#fff;border-radius:8px;
-  font-size:12px;cursor:pointer;color:var(--text);white-space:nowrap;
+  padding:6px 10px;border:1px solid var(--line);background:var(--input-bg);border-radius:var(--btn-radius);
+  font-size:12px;cursor:pointer;color:var(--text);white-space:nowrap;font-family:inherit;
 }
-.small-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.small-btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 
 .summary{display:flex;justify-content:space-between;align-items:baseline}
 .summary b{font-size:18px;color:var(--accent)}
@@ -75,13 +145,18 @@ ul.log li{
 ul.log li:first-child{border-top:none}
 ul.log .t{flex:1;color:var(--sub);white-space:nowrap;font-variant-numeric:tabular-nums}
 ul.log .m{flex:1 1 100%;order:3;word-break:break-all}
-ul.log .m.none{color:#b5b0a8}
-ul.log .x{border:none;background:none;color:#b5b0a8;cursor:pointer;font-size:14px;padding:0 2px}
+ul.log .m.none{color:var(--faint)}
+ul.log .x{border:none;background:none;color:var(--faint);cursor:pointer;font-size:14px;padding:0 2px}
 ul.log .x:hover{color:var(--accent)}
 
 details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
 .set-grid{display:grid;grid-template-columns:1fr auto;gap:6px 8px;align-items:center;margin-top:8px}
-.set-grid input{width:48px;padding:5px;border:1px solid var(--line);border-radius:6px;font-size:14px;text-align:right}
+.set-grid input,.set-grid select{
+  padding:5px;border:1px solid var(--line);border-radius:var(--btn-radius);font-size:14px;
+  background:var(--input-bg);color:var(--text);font-family:inherit;
+}
+.set-grid input{width:48px;text-align:right}
+.set-grid select{max-width:110px;font-size:13px}
 .note{font-size:10.5px;color:var(--sub);margin-top:6px;line-height:1.5}
 
 .day{margin-bottom:10px}
@@ -90,11 +165,53 @@ details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
 .day-head .s{color:var(--sub);font-size:12px}
 .empty{color:var(--sub);text-align:center;padding:20px 0}
 .toast{
-  position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
-  background:#333;color:#fff;padding:7px 12px;border-radius:8px;font-size:12px;
+  position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:3;
+  background:var(--text);color:var(--bg);padding:7px 12px;border-radius:8px;font-size:12px;
   opacity:0;pointer-events:none;transition:opacity .25s;max-width:90%;
 }
 .toast.on{opacity:.92}
+
+/* ---------- テーマごとの演出 ---------- */
+/* ネオン:光る線と文字 */
+html[data-theme=neon] .tabs button.on{background:transparent;color:var(--accent);box-shadow:0 0 8px var(--glow),inset 0 0 6px var(--glow)}
+html[data-theme=neon] .mode{letter-spacing:.2em;text-shadow:0 0 8px var(--accent)}
+html[data-theme=neon] .ring .fg{filter:drop-shadow(0 0 4px var(--accent))}
+html[data-theme=neon] .time{color:#eaffff;text-shadow:0 0 10px var(--glow)}
+html[data-theme=neon] .btns button:not(.main){background:rgba(0,229,255,.03);color:#9cc9dc}
+html[data-theme=neon] .btns button.main{color:var(--on-accent);box-shadow:0 0 14px var(--glow)}
+html[data-theme=neon] .card::before{
+  content:"";position:absolute;left:-1px;top:-1px;width:10px;height:10px;
+  border-left:2px solid var(--accent);border-top:2px solid var(--accent);
+}
+
+/* オーロラ:ぼかした光の背景とガラス風カード */
+html[data-theme=aurora] body::before{
+  content:"";position:fixed;inset:-40px;pointer-events:none;z-index:0;opacity:.4;filter:blur(14px);
+  background:
+    radial-gradient(circle at 15% 8%,var(--accent),transparent 40%),
+    radial-gradient(circle at 95% 45%,var(--accent2),transparent 45%),
+    radial-gradient(circle at 25% 95%,#00c8ff,transparent 45%);
+  transition:background .4s;
+}
+html[data-theme=aurora] .tabs button.on{background:linear-gradient(90deg,var(--accent),var(--accent2));border-color:transparent}
+html[data-theme=aurora] .mode{color:var(--text)}
+html[data-theme=aurora] .time{font-weight:300;color:#fff}
+html[data-theme=aurora] .card,
+html[data-theme=aurora] .btns button{backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+html[data-theme=aurora] .btns button.main{border:none;box-shadow:0 6px 18px var(--glow)}
+html[data-theme=aurora] .memo-card{border-color:var(--accent)}
+
+/* コックピット:目盛り式のリングと控えめな線 */
+html[data-theme=cockpit] .ring .bg,
+html[data-theme=cockpit] .ring .fg{display:none}
+html[data-theme=cockpit] .ring .ticks{display:inline}
+html[data-theme=cockpit] .ring .ticks line.on{filter:drop-shadow(0 0 2px var(--glow))}
+html[data-theme=cockpit] .tabs{gap:0;border-bottom:1px solid var(--line)}
+html[data-theme=cockpit] .tabs button{border:none;border-bottom:2px solid transparent;background:none;letter-spacing:.1em}
+html[data-theme=cockpit] .tabs button.on{background:none;color:var(--accent);border-bottom-color:var(--accent)}
+html[data-theme=cockpit] .mode{font-size:12px;letter-spacing:.35em}
+html[data-theme=cockpit] .time{color:#f4efe4;letter-spacing:.04em}
+html[data-theme=cockpit] .btns button.main{letter-spacing:.3em}
 </style>
 </head>
 <body class="focus">
@@ -109,9 +226,15 @@ details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
     <div class="mode" id="modeLabel">集中</div>
     <div class="ring">
       <svg viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop class="s1" offset="0"></stop><stop class="s2" offset="1"></stop>
+          </linearGradient>
+        </defs>
         <circle class="bg" cx="60" cy="60" r="54" fill="none" stroke-width="8"></circle>
         <circle class="fg" id="fg" cx="60" cy="60" r="54" fill="none" stroke-width="8"
           stroke-linecap="round" stroke-dasharray="339.292" stroke-dashoffset="0"></circle>
+        <g class="ticks" id="ticks"></g>
       </svg>
       <div class="time"><span id="timeText">25:00</span><small id="subText">今日 0回</small></div>
     </div>
@@ -140,14 +263,21 @@ details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
 
     <div class="card">
       <details class="set">
-        <summary>時間の設定</summary>
+        <summary>設定</summary>
         <div class="set-grid">
+          <label for="setTheme">テーマ</label>
+          <select id="setTheme">
+            <option value="neon">ネオン</option>
+            <option value="aurora">オーロラ</option>
+            <option value="cockpit">コックピット</option>
+            <option value="light">ライト</option>
+          </select>
           <label for="setFocus">集中(分)</label><input type="number" id="setFocus" min="1" max="180">
           <label for="setShort">休憩(分)</label><input type="number" id="setShort" min="1" max="60">
           <label for="setLong">長い休憩(分)</label><input type="number" id="setLong" min="1" max="120">
           <label for="setEvery">長い休憩の間隔(回)</label><input type="number" id="setEvery" min="2" max="10">
         </div>
-        <div class="note">変更は、動いていない区間にはすぐ反映され、動作中の区間には次から反映されます。</div>
+        <div class="note">テーマはすぐ切り替わります。時間の変更は、動いていない区間にはすぐ反映され、動作中の区間には次から反映されます。</div>
       </details>
     </div>
 
@@ -182,7 +312,7 @@ details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
   function save(k, v){ store.set(k, JSON.stringify(v)); }
 
   var KEY_SET="pomo_settings_v1", KEY_STATE="pomo_state_v1", KEY_LOG="pomo_log_v1";
-  var settings = Object.assign({focus:25, short:5, long:15, every:4}, load(KEY_SET, {}));
+  var settings = Object.assign({focus:25, short:5, long:15, every:4, theme:"neon"}, load(KEY_SET, {}));
   var log = load(KEY_LOG, []);
   var state = load(KEY_STATE, null);
   var pendingMemoId = null;
@@ -192,6 +322,29 @@ details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
   if(!state || !state.mode){
     state = {mode:"focus", running:false, endAt:null, remainMs:dur("focus"), totalMs:dur("focus"), cycle:0};
   }
+
+  /* ---------- テーマ ---------- */
+  var THEMES = ["neon","aurora","cockpit","light"];
+  function applyTheme(){
+    if(THEMES.indexOf(settings.theme) < 0) settings.theme = "neon";
+    document.documentElement.setAttribute("data-theme", settings.theme);
+    $("setTheme").value = settings.theme;
+  }
+
+  /* コックピット用の目盛り(60本) */
+  var TICKS = 60, tickEls = [];
+  (function buildTicks(){
+    var g = $("ticks"), ns = "http://www.w3.org/2000/svg";
+    for(var i=0;i<TICKS;i++){
+      var a = i/TICKS*Math.PI*2, big = i%5===0;
+      var r1 = 47, r2 = big ? 57 : 53;
+      var l = document.createElementNS(ns, "line");
+      l.setAttribute("x1", 60+r1*Math.cos(a)); l.setAttribute("y1", 60+r1*Math.sin(a));
+      l.setAttribute("x2", 60+r2*Math.cos(a)); l.setAttribute("y2", 60+r2*Math.sin(a));
+      l.setAttribute("stroke-width", big ? 2.4 : 1.4);
+      g.appendChild(l); tickEls.push(l);
+    }
+  })();
 
   /* ---------- 日付ユーティリティ ---------- */
   function pad(n){ return (n<10?"0":"")+n; }
@@ -327,14 +480,14 @@ details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
   }
   function renderNotifNote(){
     var el = $("notifNote");
-    var t = "合図は画面の点滅とタブのタイトルで出ます(音は鳴りません)。";
+    var t = "合図は画面のふちの光とタブのタイトルで出ます(音は鳴りません)。";
     try{
       if(!("Notification" in window)){
         t += " ブラウザ通知はこの環境では使えません。";
       }else if(Notification.permission === "granted"){
         t += " ブラウザ通知もオンです。";
       }else if(Notification.permission === "denied"){
-        t += " ブラウザ通知は許可されていません(点滅とタイトルで代用します)。";
+        t += " ブラウザ通知は許可されていません(光とタイトルで代用します)。";
       }else{
         t += " 「開始」を押すと、ブラウザ通知の許可を聞かれることがあります。";
       }
@@ -363,6 +516,8 @@ details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
     $("timeText").textContent = fmt(rem);
     var prog = state.totalMs > 0 ? 1 - rem/state.totalMs : 0;
     $("fg").style.strokeDashoffset = String(CIRC * prog);
+    var lit = Math.ceil(TICKS * (1 - prog) - 1e-9);
+    tickEls.forEach(function(l, i){ l.classList.toggle("on", i < lit); });
     var te = todayEntries();
     $("subText").textContent = "今日 " + te.length + "回";
     $("btnMain").textContent = state.running ? "一時停止" : (rem===state.totalMs ? "開始" : "再開");
@@ -515,6 +670,11 @@ details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
   });
 
   /* 設定 */
+  $("setTheme").addEventListener("change", function(){
+    settings.theme = $("setTheme").value;
+    save(KEY_SET, settings);
+    applyTheme();
+  });
   var fields = {focus:"setFocus", short:"setShort", long:"setLong", every:"setEvery"};
   function fillSettings(){
     Object.keys(fields).forEach(function(k){ $(fields[k]).value = settings[k]; });
@@ -548,6 +708,7 @@ details.set summary{cursor:pointer;color:var(--sub);font-size:13px}
   }
 
   /* ---------- 起動 ---------- */
+  applyTheme();
   fillSettings();
   renderNotifNote();
   // 前回の起動中に終了時刻を過ぎていた場合
